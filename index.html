@@ -5,27 +5,120 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AES-256 Encryption and Decryption with AES-GCM</title>
     <script src="https://cdn.rawgit.com/davidshimjs/qrcodejs/gh-pages/qrcode.min.js"></script>
+    <style>
+        /* General dark mode background and text styles */
+        body {
+            background-color: #121212; /* Dark background for the whole page */
+            color: #e0e0e0; /* Light text for readability */
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            max-width: 800px; /* Set a max-width to keep the layout centered */
+            margin: 0 auto; /* Center the container */
+            padding: 20px;
+        }
+
+        h1, h2, h3 {
+            color: #ffffff; /* White text for headings */
+            text-align: center; /* Center the headings */
+        }
+
+        textarea {
+            background-color: #333333; /* Dark background for text areas */
+            color: #e0e0e0; /* Light text inside text areas */
+            border: 1px solid #444444; /* Dark border for text areas */
+            padding: 8px;
+            width: 100%;
+            box-sizing: border-box;
+            margin-bottom: 10px;
+        }
+
+        textarea:focus {
+            border: 1px solid #bbbbbb; /* Light border on focus */
+        }
+
+        input[type="text"], select {
+            background-color: #333333; /* Dark background for select and inputs */
+            color: #e0e0e0; /* Light text */
+            border: 1px solid #444444; /* Dark border */
+            padding: 8px;
+            width: 100%;
+            box-sizing: border-box;
+            margin-bottom: 10px;
+        }
+
+        input[type="text"]:focus, select:focus {
+            border: 1px solid #bbbbbb; /* Light border on focus */
+        }
+
+        button {
+            background-color: #555555; /* Dark button background */
+            color: #e0e0e0; /* Light text on buttons */
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+            width: auto;
+            display: inline-block;
+        }
+
+        button:disabled {
+            background-color: #333333; /* Darker button when disabled */
+            cursor: not-allowed;
+        }
+
+        button:hover {
+            background-color: #666666; /* Button lightens on hover */
+        }
+
+        .output {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #333333;
+            border-radius: 5px;
+            border: 1px solid #444444;
+        }
+
+        #qrcode {
+            margin-top: 20px;
+            background-color: #333333;
+            padding: 20px;
+            border-radius: 10px;
+            display: block;
+            text-align: center;
+        }
+    </style>
 </head>
 <body>
-    <h1>AES-256 Encryption and Decryption with AES-GCM</h1>
+    <div class="container">
+        <h1>AES-256 Encryption and Decryption with AES-GCM</h1>
 
-    <h2>Enter AES-256 Key (64 hex characters)</h2>
-    <input type="text" id="aesKey" placeholder="Enter 64 character AES key" required><br><br>
-    
-    <h2>Encrypt a Message</h2>
-    <textarea id="plaintext" placeholder="Enter text to encrypt..." rows="4" cols="50"></textarea><br>
-    <button id="encryptButton" disabled>Encrypt Message</button>
-    <p id="encryptedMessage">Encrypted message will appear here.</p>
-    
-    <!-- QR Code generation -->
-    <h3>Generate QR Code for Encrypted Message</h3>
-    <div id="qrcode"></div><br>
-    
-    <h2>Decrypt a Message</h2>
-    <textarea id="ciphertext" placeholder="Enter encrypted message..." rows="4" cols="50"></textarea><br>
-    <textarea id="iv" placeholder="Enter IV (12 bytes, hex)..." rows="2" cols="50"></textarea><br>
-    <button id="decryptButton" disabled>Decrypt Message</button>
-    <p id="decryptedMessage">Decrypted message will appear here.</p>
+        <h2>Enter AES-256 Key (64 hex characters)</h2>
+        <input type="text" id="aesKey" placeholder="Enter 64 character AES key" required><br>
+        <button id="saveKeyButton">Save Key</button><br>
+
+        <h2>Select Saved Key</h2>
+        <select id="keySelect">
+            <option value="">-- Select Saved Key --</option>
+        </select><br>
+
+        <h2>Encrypt a Message</h2>
+        <textarea id="plaintext" placeholder="Enter text to encrypt..." rows="4"></textarea><br>
+        <button id="encryptButton" disabled>Encrypt Message</button>
+        <div id="encryptedMessage" class="output">Encrypted message will appear here.</div>
+
+        <h3>Generate QR Code for Encrypted Message</h3>
+        <div id="qrcode"></div><br>
+
+        <h2>Decrypt a Message</h2>
+        <textarea id="ciphertext" placeholder="Enter encrypted message..." rows="4"></textarea><br>
+        <textarea id="iv" placeholder="Enter IV (12 bytes, hex)..." rows="2"></textarea><br>
+        <button id="decryptButton" disabled>Decrypt Message</button>
+        <div id="decryptedMessage" class="output">Decrypted message will appear here.</div>
+    </div>
 
     <script>
         let encryptionKey = null;
@@ -40,6 +133,61 @@
                 console.log("AES Key set: ", keyInput); // Log the key for debugging
             } else {
                 document.getElementById("encryptButton").disabled = true; // Disable if key is incorrect
+            }
+        });
+
+        // Save the AES key to localStorage
+        document.getElementById("saveKeyButton").addEventListener("click", () => {
+            const keyInput = document.getElementById("aesKey").value;
+            if (keyInput.length === 64) {
+                let savedKeys = JSON.parse(localStorage.getItem("savedKeys") || "[]");
+                
+                if (savedKeys.length >= 3) {
+                    alert("You can only save up to 3 keys.");
+                    return;
+                }
+                
+                if (!savedKeys.includes(keyInput)) {
+                    savedKeys.push(keyInput);
+                    localStorage.setItem("savedKeys", JSON.stringify(savedKeys));
+                    loadSavedKeys();
+                    alert("Key saved!");
+                } else {
+                    alert("This key is already saved.");
+                }
+            } else {
+                alert("Please enter a valid AES key.");
+            }
+        });
+
+        // Load saved AES keys into the select dropdown
+        function loadSavedKeys() {
+            const savedKeys = JSON.parse(localStorage.getItem("savedKeys") || "[]");
+            const keySelect = document.getElementById("keySelect");
+            keySelect.innerHTML = "<option value=''>-- Select Saved Key --</option>"; // Clear the dropdown
+            
+            savedKeys.forEach((key, index) => {
+                const option = document.createElement("option");
+                option.value = key;
+                option.textContent = `Key ${index + 1}`;
+                keySelect.appendChild(option);
+            });
+        }
+
+        // Load the selected key into the input field and trigger the 'input' event to enable encryption
+        document.getElementById("keySelect").addEventListener("change", () => {
+            const selectedKey = document.getElementById("keySelect").value;
+            if (selectedKey) {
+                document.getElementById("aesKey").value = selectedKey;
+                importKey(selectedKey); // Import the selected key
+                console.log("AES Key loaded: ", selectedKey);
+
+                // Manually trigger the 'input' event to enable the encryption button
+                const event = new Event('input');
+                document.getElementById("aesKey").dispatchEvent(event);
+
+                // Enable the decrypt button if both encrypted message and IV are filled
+                checkDecryptButton();
             }
         });
 
@@ -156,6 +304,22 @@
                 height: 128
             });
         }
+
+        // Function to check if decrypt button should be enabled
+        function checkDecryptButton() {
+            const encryptedMessage = document.getElementById("ciphertext").value;
+            const iv = document.getElementById("iv").value;
+
+            // Enable decrypt button if both fields are filled
+            if (encryptedMessage && iv) {
+                document.getElementById("decryptButton").disabled = false;
+            } else {
+                document.getElementById("decryptButton").disabled = true;
+            }
+        }
+
+        // Load any saved keys when the page is loaded
+        window.onload = loadSavedKeys;
     </script>
 </body>
 </html>
