@@ -105,6 +105,8 @@
             <option value="">-- Select Saved Key --</option>
         </select><br>
 
+        <button id="deleteKeyButton" disabled>Delete Selected Key</button><br>
+
         <h2>Encrypt a Message</h2>
         <textarea id="plaintext" placeholder="Enter text to encrypt..." rows="4"></textarea><br>
         <button id="encryptButton" disabled>Encrypt Message</button>
@@ -141,14 +143,15 @@
             const keyInput = document.getElementById("aesKey").value;
             if (keyInput.length === 64) {
                 let savedKeys = JSON.parse(localStorage.getItem("savedKeys") || "[]");
-                
+                const keyName = prompt("Enter a name for this key:", `Key ${savedKeys.length + 1}`);
+
                 if (savedKeys.length >= 3) {
                     alert("You can only save up to 3 keys.");
                     return;
                 }
                 
-                if (!savedKeys.includes(keyInput)) {
-                    savedKeys.push(keyInput);
+                if (!savedKeys.some(key => key.key === keyInput)) {
+                    savedKeys.push({ key: keyInput, name: keyName });
                     localStorage.setItem("savedKeys", JSON.stringify(savedKeys));
                     loadSavedKeys();
                     alert("Key saved!");
@@ -160,27 +163,47 @@
             }
         });
 
+        // Delete the selected key after confirmation
+        document.getElementById("deleteKeyButton").addEventListener("click", () => {
+            const selectedKey = document.getElementById("keySelect").value;
+            if (selectedKey) {
+                if (confirm(`Are you sure you want to delete "${selectedKey}"?`)) {
+                    let savedKeys = JSON.parse(localStorage.getItem("savedKeys") || "[]");
+                    savedKeys = savedKeys.filter(key => key.name !== selectedKey);
+                    localStorage.setItem("savedKeys", JSON.stringify(savedKeys));
+                    loadSavedKeys();
+                    alert("Key deleted.");
+                }
+            }
+        });
+
         // Load saved AES keys into the select dropdown
         function loadSavedKeys() {
             const savedKeys = JSON.parse(localStorage.getItem("savedKeys") || "[]");
             const keySelect = document.getElementById("keySelect");
             keySelect.innerHTML = "<option value=''>-- Select Saved Key --</option>"; // Clear the dropdown
             
-            savedKeys.forEach((key, index) => {
+            savedKeys.forEach((key) => {
                 const option = document.createElement("option");
-                option.value = key;
-                option.textContent = `Key ${index + 1}`;
+                option.value = key.name;
+                option.textContent = `${key.name}`;
                 keySelect.appendChild(option);
             });
+            
+            // Enable the delete button if there's a key selected
+            document.getElementById("deleteKeyButton").disabled = savedKeys.length === 0;
         }
 
         // Load the selected key into the input field and trigger the 'input' event to enable encryption
         document.getElementById("keySelect").addEventListener("change", () => {
-            const selectedKey = document.getElementById("keySelect").value;
+            const selectedKeyName = document.getElementById("keySelect").value;
+            const savedKeys = JSON.parse(localStorage.getItem("savedKeys") || "[]");
+            const selectedKey = savedKeys.find(key => key.name === selectedKeyName);
+
             if (selectedKey) {
-                document.getElementById("aesKey").value = selectedKey;
-                importKey(selectedKey); // Import the selected key
-                console.log("AES Key loaded: ", selectedKey);
+                document.getElementById("aesKey").value = selectedKey.key;
+                importKey(selectedKey.key); // Import the selected key
+                console.log("AES Key loaded: ", selectedKey.key);
 
                 // Manually trigger the 'input' event to enable the encryption button
                 const event = new Event('input');
