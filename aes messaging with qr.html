@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AES-256 Encryption and Decryption with AES-GCM</title>
+    <script src="https://cdn.rawgit.com/davidshimjs/qrcodejs/gh-pages/qrcode.min.js"></script>
+</head>
+<body>
+    <h1>AES-256 Encryption and Decryption with AES-GCM</h1>
+
+    <h2>Enter AES-256 Key (64 hex characters)</h2>
+    <input type="text" id="aesKey" placeholder="Enter 64 character AES key" required><br><br>
+    
+    <h2>Encrypt a Message</h2>
+    <textarea id="plaintext" placeholder="Enter text to encrypt..." rows="4" cols="50"></textarea><br>
+    <button id="encryptButton" disabled>Encrypt Message</button>
+    <p id="encryptedMessage">Encrypted message will appear here.</p>
+    
+    <!-- QR Code generation -->
+    <h3>Generate QR Code for Encrypted Message</h3>
+    <div id="qrcode"></div><br>
+    
+    <h2>Decrypt a Message</h2>
+    <textarea id="ciphertext" placeholder="Enter encrypted message..." rows="4" cols="50"></textarea><br>
+    <textarea id="iv" placeholder="Enter IV (12 bytes, hex)..." rows="2" cols="50"></textarea><br>
+    <button id="decryptButton" disabled>Decrypt Message</button>
+    <p id="decryptedMessage">Decrypted message will appear here.</p>
+
+    <script>
+        let encryptionKey = null;
+        let iv = null;
+
+        // Enable encryption button only when a key is provided
+        document.getElementById("aesKey").addEventListener("input", () => {
+            const keyInput = document.getElementById("aesKey").value;
+            if (keyInput.length === 64) { // Check if the key length is 64 hex characters (256 bits)
+                document.getElementById("encryptButton").disabled = false; // Enable encryption button
+                importKey(keyInput); // Import the AES key into CryptoKey
+                console.log("AES Key set: ", keyInput); // Log the key for debugging
+            } else {
+                document.getElementById("encryptButton").disabled = true; // Disable if key is incorrect
+            }
+        });
+
+        // Import the AES key into a CryptoKey
+        async function importKey(keyHex) {
+            const keyBuffer = hexToArrayBuffer(keyHex);
+            encryptionKey = await crypto.subtle.importKey(
+                "raw", // Key format
+                keyBuffer, // The actual key data
+                { name: "AES-GCM" }, // Algorithm to use the key with
+                false, // Whether the key can be exported
+                ["encrypt", "decrypt"] // Allowed usages
+            );
+        }
+
+        // Encrypt the input message
+        document.getElementById("encryptButton").addEventListener("click", async () => {
+            const plaintext = document.getElementById("plaintext").value;
+            const encoder = new TextEncoder();
+            const data = encoder.encode(plaintext);
+
+            if (encryptionKey === null) {
+                console.error("Encryption key is not set.");
+                return;
+            }
+
+            iv = crypto.getRandomValues(new Uint8Array(12)); // Generate new IV for each encryption
+            console.log("Encrypting message:", plaintext); // Log plaintext before encryption
+
+            try {
+                const ciphertext = await crypto.subtle.encrypt(
+                    {
+                        name: "AES-GCM",
+                        iv: iv,
+                    },
+                    encryptionKey,
+                    data
+                );
+
+                const encryptedHex = arrayBufferToHex(ciphertext);
+                const ivHex = arrayBufferToHex(iv); // Convert IV to hex for easy display
+
+                console.log("Encrypted message:", encryptedHex); // Log the encrypted message
+                document.getElementById("encryptedMessage").textContent = `Encrypted Message: ${encryptedHex}`;
+                document.getElementById("iv").value = ivHex; // Display IV in hex for the user
+                document.getElementById("decryptButton").disabled = false; // Enable decryption button
+
+                // Create a QR code with ciphertext and IV
+                generateQRCode(encryptedHex, ivHex);
+
+            } catch (error) {
+                console.error("Encryption failed", error);
+            }
+        });
+
+        // Decrypt the input message
+        document.getElementById("decryptButton").addEventListener("click", async () => {
+            const encryptedHex = document.getElementById("ciphertext").value;
+            const ivHex = document.getElementById("iv").value;
+
+            if (encryptionKey === null || ivHex.length !== 24) {
+                console.error("Encryption key or IV is not set.");
+                return;
+            }
+
+            const encryptedArrayBuffer = hexToArrayBuffer(encryptedHex);
+            const ivArrayBuffer = hexToArrayBuffer(ivHex);
+
+            console.log("Decrypting message:", encryptedHex); // Log the encrypted message before decryption
+
+            try {
+                const decryptedData = await crypto.subtle.decrypt(
+                    {
+                        name: "AES-GCM",
+                        iv: ivArrayBuffer,
+                    },
+                    encryptionKey,
+                    encryptedArrayBuffer
+                );
+
+                const decoder = new TextDecoder();
+                const decryptedMessage = decoder.decode(decryptedData);
+                document.getElementById("decryptedMessage").textContent = `Decrypted Message: ${decryptedMessage}`;
+            } catch (error) {
+                console.error("Decryption failed", error);
+            }
+        });
+
+        // Helper function to convert an ArrayBuffer to a hex string
+        function arrayBufferToHex(buffer) {
+            const byteArray = new Uint8Array(buffer);
+            return Array.from(byteArray).map(byte => byte.toString(16).padStart(2, "0")).join("");
+        }
+
+        // Helper function to convert a hex string to an ArrayBuffer
+        function hexToArrayBuffer(hex) {
+            const buffer = new ArrayBuffer(hex.length / 2);
+            const view = new Uint8Array(buffer);
+            for (let i = 0; i < hex.length; i += 2) {
+                view[i / 2] = parseInt(hex.substr(i, 2), 16);
+            }
+            return buffer;
+        }
+
+        // Function to generate a QR code with encrypted message and IV
+        function generateQRCode(ciphertext, iv) {
+            const combinedData = `${ciphertext},${iv}`;  // Combine ciphertext and IV into one string
+
+            // Generate the QR code
+            document.getElementById("qrcode").innerHTML = '';  // Clear previous QR code
+            new QRCode(document.getElementById("qrcode"), {
+                text: combinedData,
+                width: 128,
+                height: 128
+            });
+        }
+    </script>
+</body>
+</html>
