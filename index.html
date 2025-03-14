@@ -105,7 +105,8 @@
             <option value="">-- Select Saved Key --</option>
         </select><br>
 
-        <button id="deleteKeyButton" disabled>Delete Selected Key</button><br>
+        <button id="deleteKeyButton" disabled>Delete Selected Key</button>
+        <button id="clearStorageButton" disabled>Clear All Saved Keys</button> <!-- Clear Storage Button next to Delete -->
 
         <h2>Encrypt a Message</h2>
         <textarea id="plaintext" placeholder="Enter text to encrypt..." rows="4"></textarea><br>
@@ -145,14 +146,24 @@
                 let savedKeys = JSON.parse(localStorage.getItem("savedKeys") || "[]");
                 const keyName = prompt("Enter a name for this key:", `Key ${savedKeys.length + 1}`);
 
+                // Reject if the key name is invalid (empty or null)
+                if (!keyName || keyName.trim() === "") {
+                    alert("Key name cannot be empty!");
+                    return;
+                }
+
                 if (savedKeys.length >= 3) {
                     alert("You can only save up to 3 keys.");
                     return;
                 }
-                
+
                 if (!savedKeys.some(key => key.key === keyInput)) {
                     savedKeys.push({ key: keyInput, name: keyName });
                     localStorage.setItem("savedKeys", JSON.stringify(savedKeys));
+
+                    // Debugging: log saved keys
+                    console.log("Saved Keys:", savedKeys);
+
                     loadSavedKeys();
                     alert("Key saved!");
                 } else {
@@ -167,12 +178,27 @@
         document.getElementById("deleteKeyButton").addEventListener("click", () => {
             const selectedKey = document.getElementById("keySelect").value;
             if (selectedKey) {
-                if (confirm(`Are you sure you want to delete "${selectedKey}"?`)) {
-                    let savedKeys = JSON.parse(localStorage.getItem("savedKeys") || "[]");
-                    savedKeys = savedKeys.filter(key => key.name !== selectedKey);
-                    localStorage.setItem("savedKeys", JSON.stringify(savedKeys));
-                    loadSavedKeys();
-                    alert("Key deleted.");
+                if (confirm("Are you sure you want to delete this key?")) {
+                    if (confirm("Are you absolutely sure? This action is irreversible.")) {
+                        let savedKeys = JSON.parse(localStorage.getItem("savedKeys") || "[]");
+                        savedKeys = savedKeys.filter(key => key.name !== selectedKey);
+                        localStorage.setItem("savedKeys", JSON.stringify(savedKeys));
+                        loadSavedKeys();
+                        alert("Key deleted.");
+                    }
+                }
+            } else {
+                alert("Please select a valid key to delete.");
+            }
+        });
+
+        // Clear all saved keys from localStorage
+        document.getElementById("clearStorageButton").addEventListener("click", () => {
+            if (confirm("Are you sure you want to clear all saved keys?")) {
+                if (confirm("Are you absolutely sure? This will delete all saved keys.")) {
+                    localStorage.removeItem("savedKeys"); // Clear the saved keys
+                    loadSavedKeys(); // Reload the saved keys dropdown (it will be empty now)
+                    alert("All saved keys have been cleared.");
                 }
             }
         });
@@ -180,18 +206,21 @@
         // Load saved AES keys into the select dropdown
         function loadSavedKeys() {
             const savedKeys = JSON.parse(localStorage.getItem("savedKeys") || "[]");
+            console.log("Loaded Keys:", savedKeys); // Debugging log to check the saved keys
+
             const keySelect = document.getElementById("keySelect");
             keySelect.innerHTML = "<option value=''>-- Select Saved Key --</option>"; // Clear the dropdown
             
             savedKeys.forEach((key) => {
                 const option = document.createElement("option");
                 option.value = key.name;
-                option.textContent = `${key.name}`;
+                option.textContent = key.name;
                 keySelect.appendChild(option);
             });
             
             // Enable the delete button if there's a key selected
             document.getElementById("deleteKeyButton").disabled = savedKeys.length === 0;
+            document.getElementById("clearStorageButton").disabled = savedKeys.length === 0;
         }
 
         // Load the selected key into the input field and trigger the 'input' event to enable encryption
@@ -320,29 +349,23 @@
             const combinedData = `${ciphertext},${iv}`;  // Combine ciphertext and IV into one string
 
             // Generate the QR code
-            document.getElementById("qrcode").innerHTML = '';  // Clear previous QR code
+            document.getElementById("qrcode").innerHTML = ""; // Clear any previous QR code
             new QRCode(document.getElementById("qrcode"), {
                 text: combinedData,
                 width: 128,
-                height: 128
+                height: 128,
             });
         }
 
-        // Function to check if decrypt button should be enabled
+        // Check if both IV and ciphertext are filled to enable the decrypt button
         function checkDecryptButton() {
-            const encryptedMessage = document.getElementById("ciphertext").value;
+            const ciphertext = document.getElementById("ciphertext").value;
             const iv = document.getElementById("iv").value;
-
-            // Enable decrypt button if both fields are filled
-            if (encryptedMessage && iv) {
-                document.getElementById("decryptButton").disabled = false;
-            } else {
-                document.getElementById("decryptButton").disabled = true;
-            }
+            document.getElementById("decryptButton").disabled = !ciphertext || !iv;
         }
 
-        // Load any saved keys when the page is loaded
-        window.onload = loadSavedKeys;
+        // Initial loading of saved keys from localStorage
+        loadSavedKeys();
     </script>
 </body>
 </html>
